@@ -1,46 +1,75 @@
 #!/usr/bin/env node
 
-'use strict';
+"use strict";
 
-const chokidar = require('chokidar');
-const path = require('path');
-const babel = require('babel-core');
-const fs = require('fs');
-const os = require('os');
-const util = require('util');
-const fork = require('child_process').fork;
-const execSync = require('child_process').execSync;
-const commander = require('commander');
+const chokidar = require("chokidar");
+const path = require("path");
+const babel = require("@babel/core");
+const fs = require("fs");
+const os = require("os");
+const util = require("util");
+const fork = require("child_process").fork;
+const execSync = require("child_process").execSync;
+const commander = require("commander");
 
-const RESTART_COMMAND = 'rs';
-
+const RESTART_COMMAND = "rs";
 const program = new commander.Command("babel-watch");
+
+// TODO: find a workaround because `babel.util` has been removed from the version 7
+const utilList = babel.util && babel.util.list ? babel.util.list : null;
 
 function collect(val, memo) {
   memo.push(val);
   return memo;
 }
 
-program.option('-d, --debug [port]', 'Set debugger port')
-program.option('-B, --debug-brk', 'Enable debug break mode')
-program.option('-I, --inspect', 'Enable inspect mode')
-program.option('-o, --only [globs]', 'Matching files will be transpiled');
-program.option('-i, --ignore [globs]', 'Matching files will not be transpiled');
-program.option('-e, --extensions [extensions]', 'List of extensions to hook into [.es6,.js,.es,.jsx]');
-program.option('-p, --plugins [string]', '', babel.util.list);
-program.option('-b, --presets [string]', '', babel.util.list);
-program.option('-w, --watch [dir]', 'Watch directory "dir" or files. Use once for each directory or file to watch', collect, []);
-program.option('-x, --exclude [dir]', 'Exclude matching directory/files from watcher. Use once for each directory or file.', collect, []);
-program.option('-L, --use-polling', 'In some filesystems watch events may not work correcly. This option enables "polling" which should mitigate this type of issues');
-program.option('-D, --disable-autowatch', 'Don\'t automatically start watching changes in files "required" by the program');
-program.option('-H, --disable-ex-handler', 'Disable source-map-enhanced uncaught exception handler. (you may want to use this option in case your app registers a custom uncaught exception handler)');
-program.option('-m, --message [string]', 'Set custom message displayed on restart (default is ">>> RESTARTING <<<")');
+program.option("-d, --debug [port]", "Set debugger port");
+program.option("-B, --debug-brk", "Enable debug break mode");
+program.option("-I, --inspect", "Enable inspect mode");
+program.option("-o, --only [globs]", "Matching files will be transpiled");
+program.option("-i, --ignore [globs]", "Matching files will not be transpiled");
+program.option(
+  "-e, --extensions [extensions]",
+  "List of extensions to hook into [.es6,.js,.es,.jsx]"
+);
+program.option("-p, --plugins [string]", "", utilList);
+program.option("-b, --presets [string]", "", utilList);
+program.option(
+  "-w, --watch [dir]",
+  'Watch directory "dir" or files. Use once for each directory or file to watch',
+  collect,
+  []
+);
+program.option(
+  "-x, --exclude [dir]",
+  "Exclude matching directory/files from watcher. Use once for each directory or file.",
+  collect,
+  []
+);
+program.option(
+  "-L, --use-polling",
+  'In some filesystems watch events may not work correcly. This option enables "polling" which should mitigate this type of issues'
+);
+program.option(
+  "-D, --disable-autowatch",
+  'Don\'t automatically start watching changes in files "required" by the program'
+);
+program.option(
+  "-H, --disable-ex-handler",
+  "Disable source-map-enhanced uncaught exception handler. (you may want to use this option in case your app registers a custom uncaught exception handler)"
+);
+program.option(
+  "-m, --message [string]",
+  'Set custom message displayed on restart (default is "⚙️  Source file(s) changed. Restarting...")'
+);
 
-const pkg = require('./package.json');
+const pkg = require("./package.json");
 program.version(pkg.version);
-program.usage('[options] [script.js] [args]');
-program.description('babel-watch is a babel-js node app runner that lets you reload the app on JS source file changes.');
-program.on('--help', () => {
+program.usage("[options] [script.js] [args]");
+program.description(
+  "babel-watch is a babel-js node app runner that lets you reload the app on JS source file changes."
+);
+program.on("--help", () => {
   console.log(`\
   About "autowatch":
 
@@ -79,27 +108,36 @@ const cwd = process.cwd();
 
 let only, ignore;
 
-if (program.only != null) only = babel.util.arrayify(program.only, babel.util.regexify);
-if (program.ignore != null) ignore = babel.util.arrayify(program.ignore, babel.util.regexify);
+// TODO: find a workaround because `babel.util` has been removed from the version 7
+// if (program.only != null)
+//   only = babel.util.arrayify(program.only, babel.util.regexify);
+// if (program.ignore != null)
+//   ignore = babel.util.arrayify(program.ignore, babel.util.regexify);
 
-let transpileExtensions = babel.util.canCompile.EXTENSIONS;
+// TODO: find a workaround because `babel.util` has been removed from the version 7
+// let transpileExtensions = babel.util.canCompile.EXTENSIONS;
 
-if (program.extensions) {
-  transpileExtensions = transpileExtensions.concat(babel.util.arrayify(program.extensions));
-}
+let transpileExtensions = [];
+
+// TODO: find a workaround because `babel.util` has been removed from the version 7
+// if (program.extensions) {
+//   transpileExtensions = transpileExtensions.concat(
+//     babel.util.arrayify(program.extensions)
+//   );
+// }
 
 const mainModule = program.args[0];
 if (!mainModule) {
-  console.error('Main script not specified');
+  console.error("Main script not specified");
   process.exit(1);
 }
-if (!mainModule.startsWith('.') && !mainModule.startsWith('/')) {
+if (!mainModule.startsWith(".") && !mainModule.startsWith("/")) {
   program.args[0] = path.join(cwd, mainModule);
 }
 
 const transformOpts = {
   plugins: program.plugins,
-  presets: program.presets,
+  presets: program.presets
 };
 
 let childApp, pipeFd, pipeFilename;
@@ -111,42 +149,42 @@ const watcher = chokidar.watch(program.watch, {
   persistent: true,
   ignored: program.exclude,
   ignoreInitial: true,
-  usePolling: program.usePolling,
+  usePolling: program.usePolling
 });
-let watcherInitialized = (program.watch.length === 0);
+let watcherInitialized = program.watch.length === 0;
 
-process.on('SIGINT', function() {
+process.on("SIGINT", function() {
   watcher.close();
   process.exit(1);
 });
 
-watcher.on('change', handleChange);
-watcher.on('add', handleChange);
-watcher.on('unlink', handleChange);
+watcher.on("change", handleChange);
+watcher.on("add", handleChange);
+watcher.on("unlink", handleChange);
 
-watcher.on('ready', () => {
+watcher.on("ready", () => {
   if (!watcherInitialized) {
     watcherInitialized = true;
     restartApp();
   }
 });
 
-watcher.on('error', error => {
-  console.error('Watcher failure', error);
+watcher.on("error", error => {
+  console.error("Watcher failure", error);
   process.exit(1);
 });
 
 // Restart the app when a sequence of keys has been pressed ('rs' by refault)
 const stdin = process.stdin;
-stdin.setEncoding('utf8');
-stdin.on('data', (data) => {
+stdin.setEncoding("utf8");
+stdin.on("data", data => {
   if (String(data).trim() === RESTART_COMMAND) {
     restartApp();
   }
 });
 
 function handleChange(file) {
-  const absoluteFile = file.startsWith('/') ? file : path.join(cwd, file);
+  const absoluteFile = file.startsWith("/") ? file : path.join(cwd, file);
   delete cache[absoluteFile];
   delete errors[absoluteFile];
 
@@ -156,13 +194,18 @@ function handleChange(file) {
 
 function generateTempFilename() {
   const now = new Date();
-  return path.join(os.tmpdir(), [
-    now.getYear(), now.getMonth(), now.getDate(),
-    '-',
-    process.pid,
-    '-',
-    (Math.random() * 0x100000000 + 1).toString(36),
-  ].join(''));
+  return path.join(
+    os.tmpdir(),
+    [
+      now.getYear(),
+      now.getMonth(),
+      now.getDate(),
+      "-",
+      process.pid,
+      "-",
+      (Math.random() * 0x100000000 + 1).toString(36)
+    ].join("")
+  );
 }
 
 function handleFileLoad(filename, callback) {
@@ -177,7 +220,7 @@ function handleFileLoad(filename, callback) {
   if (!shouldIgnore(filename)) {
     compile(filename, (err, result) => {
       if (err) {
-        console.error('Babel compilation error', err.stack);
+        console.error("Babel compilation error", err.stack);
         errors[filename] = true;
         return;
       }
@@ -185,7 +228,7 @@ function handleFileLoad(filename, callback) {
       cache[filename] = {
         code: result.code,
         map: result.map,
-        mtime: stats.mtime.getTime(),
+        mtime: stats.mtime.getTime()
       };
       delete errors[filename];
       callback(result.code, result.map);
@@ -199,7 +242,7 @@ function killApp() {
   if (childApp) {
     const currentPipeFd = pipeFd;
     const currentPipeFilename = pipeFilename;
-    childApp.on('exit', () => {
+    childApp.on("exit", () => {
       if (currentPipeFd) {
         fs.closeSync(currentPipeFd); // silently close pipe fd
       }
@@ -209,9 +252,9 @@ function killApp() {
       restartAppInternal();
     });
     try {
-      childApp.kill('SIGHUP');
+      childApp.kill("SIGHUP");
     } catch (error) {
-      childApp.kill('SIGKILL');
+      childApp.kill("SIGKILL");
     }
     pipeFd = undefined;
     pipeFilename = undefined;
@@ -222,7 +265,9 @@ function killApp() {
 function prepareRestart() {
   if (watcherInitialized && childApp) {
     // kill app early as `compile` may take a while
-    var restartMessage = program.message ? program.message : ">>> RESTARTING <<<";
+    var restartMessage = program.message
+      ? program.message
+      : "⚙️  Source file(s) changed. Restarting...";
     console.log(restartMessage);
     killApp();
   } else {
@@ -243,7 +288,7 @@ function restartAppInternal() {
 
   pipeFilename = generateTempFilename();
 
-  if (os.platform() === 'win32') {
+  if (os.platform() === "win32") {
     try {
       execSync(`echo. > ${pipeFilename}`);
     } catch (e) {
@@ -254,7 +299,9 @@ function restartAppInternal() {
     try {
       execSync(`mkfifo -m 0666 ${pipeFilename}`);
     } catch (e) {
-      console.error('Unable to create named pipe with mkfifo. Are you on linux/OSX?');
+      console.error(
+        "Unable to create named pipe with mkfifo. Are you on linux/OSX?"
+      );
       process.exit(1);
     }
   }
@@ -262,20 +309,22 @@ function restartAppInternal() {
   // Support for --debug option
   const runnerExecArgv = process.execArgv.slice();
   if (program.debug) {
-    runnerExecArgv.push('--debug=' + program.debug);
+    runnerExecArgv.push("--debug=" + program.debug);
   }
   // Support for --inspect option
   if (program.inspect) {
-    runnerExecArgv.push('--inspect');
+    runnerExecArgv.push("--inspect");
   }
   // Support for --debug-brk
-  if(program.debugBrk) {
-    runnerExecArgv.push('--debug-brk');
+  if (program.debugBrk) {
+    runnerExecArgv.push("--debug-brk");
   }
 
-  const app = fork(path.resolve(__dirname, 'runner.js'), { execArgv: runnerExecArgv });
+  const app = fork(path.resolve(__dirname, "runner.js"), {
+    execArgv: runnerExecArgv
+  });
 
-  app.on('message', (data) => {
+  app.on("message", data => {
     const filename = data.filename;
     if (!program.disableAutowatch) {
       // use relative path for watch.add as it would let chokidar reconsile exclude patterns
@@ -283,20 +332,23 @@ function restartAppInternal() {
       watcher.add(relativeFilename);
     }
     handleFileLoad(filename, (source, sourceMap) => {
-      const sourceBuf = new Buffer(source || 0);
-      const mapBuf = new Buffer(sourceMap ? JSON.stringify(sourceMap) : 0);
-      const lenBuf = new Buffer(4);
+      const sourceBuf = source ? Buffer.from(source) : Buffer.alloc(0);
+      const mapBuf = sourceMap
+        ? Buffer.from(JSON.stringify(sourceMap))
+        : Buffer.alloc(0);
+      const lenBuf = Buffer.alloc(4);
       try {
         lenBuf.writeUInt32BE(sourceBuf.length, 0);
         fs.writeSync(pipeFd, lenBuf, 0, 4);
-        sourceBuf.length && fs.writeSync(pipeFd, sourceBuf, 0, sourceBuf.length);
+        sourceBuf.length &&
+          fs.writeSync(pipeFd, sourceBuf, 0, sourceBuf.length);
 
         lenBuf.writeUInt32BE(mapBuf.length, 0);
         fs.writeSync(pipeFd, lenBuf, 0, 4);
         mapBuf.length && fs.writeSync(pipeFd, mapBuf, 0, mapBuf.length);
       } catch (error) {
         // EPIPE means `pipeFd` has been closed. We can ignore this
-        if (error.code !== 'EPIPE') {
+        if (error.code !== "EPIPE") {
           throw error;
         }
       }
@@ -307,9 +359,9 @@ function restartAppInternal() {
     pipe: pipeFilename,
     args: program.args,
     handleUncaughtExceptions: !program.disableExHandler,
-    transpileExtensions: transpileExtensions,
+    transpileExtensions: transpileExtensions
   });
-  pipeFd = fs.openSync(pipeFilename, 'w');
+  pipeFd = fs.openSync(pipeFilename, "w");
   childApp = app;
 }
 
@@ -318,19 +370,25 @@ function shouldIgnore(filename) {
     return true;
   } else if (!ignore && !only) {
     // Ignore node_modules by default
-    return path.relative(cwd, filename).split(path.sep).indexOf('node_modules') >= 0;
+    return (
+      path
+        .relative(cwd, filename)
+        .split(path.sep)
+        .indexOf("node_modules") >= 0
+    );
   } else {
-    return babel.util.shouldIgnore(filename, ignore || [], only);
+    // TODO: find a workaround because `babel.util` has been removed from the version 7
+    // return babel.util.shouldIgnore(filename, ignore || [], only);
   }
 }
 
 function compile(filename, callback) {
-  const optsManager = new babel.OptionManager;
+  const optsManager = new babel.OptionManager();
 
   // merge in base options and resolve all the plugins and presets relative to this file
   optsManager.mergeOptions({
     options: transformOpts,
-    alias: 'base',
+    alias: "base",
     loc: path.dirname(filename)
   });
 
