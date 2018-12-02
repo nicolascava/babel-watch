@@ -1,6 +1,6 @@
 {
   "name": "@nicolascava/babel-watch",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Fast reloading of your `babel-node` app on JavaScript source file changes",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -30,6 +30,6 @@
     "@babel/core": "7.x"
   },
   "bin": {
-    "@nicolascava/babel-watch": "./index.js"
+    "babel-watch": "./index.js"
   }
 }
