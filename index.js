@@ -62,6 +62,7 @@ program.option(
   "-m, --message [string]",
   'Set custom message displayed on restart (default is "⚙️  Source file(s) changed. Restarting...")'
 );
+program.option("-c, --config [file]", "Specify a Babel configuration file");
 
 const pkg = require("./package.json");
 program.version(pkg.version);
@@ -117,7 +118,7 @@ let only, ignore;
 // TODO: find a workaround because `babel.util` has been removed from the version 7
 // let transpileExtensions = babel.util.canCompile.EXTENSIONS;
 
-let transpileExtensions = [];
+let transpileExtensions = [".js"];
 
 // TODO: find a workaround because `babel.util` has been removed from the version 7
 // if (program.extensions) {
@@ -127,6 +128,7 @@ let transpileExtensions = [];
 // }
 
 const mainModule = program.args[0];
+
 if (!mainModule) {
   console.error("Main script not specified");
   process.exit(1);
@@ -135,10 +137,31 @@ if (!mainModule.startsWith(".") && !mainModule.startsWith("/")) {
   program.args[0] = path.join(cwd, mainModule);
 }
 
-const transformOpts = {
-  plugins: program.plugins,
-  presets: program.presets
-};
+let transformOpts;
+
+const babelConfig = JSON.parse(
+  fs.readFileSync(path.join(process.cwd(), "./package.json"))
+).babel;
+
+// TODO: extract and optimize
+if (program.config) {
+  transformOpts = JSON.parse(
+    fs.readFileSync(path.join(process.cwd(), program.config))
+  );
+} else if (program.plugins || program.presets) {
+  transformOpts = {
+    plugins: program.plugins || [],
+    presets: program.presets || []
+  };
+} else if (fs.existsSync(path.join(process.cwd(), "./.babelrc"))) {
+  transformOpts = JSON.parse(
+    fs.readFileSync(path.join(process.cwd(), "./.babelrc"))
+  );
+} else if (babelConfig) {
+  transformOpts = babelConfig;
+} else {
+  transformOpts = {};
+}
 
 let childApp, pipeFd, pipeFilename;
 
@@ -383,23 +406,23 @@ function shouldIgnore(filename) {
 }
 
 function compile(filename, callback) {
-  const optsManager = new babel.OptionManager();
+  // const optsManager = new babel.OptionManager();
 
   // merge in base options and resolve all the plugins and presets relative to this file
-  optsManager.mergeOptions({
-    options: transformOpts,
-    alias: "base",
-    loc: path.dirname(filename)
-  });
+  // optsManager.mergeOptions({
+  //   options: transformOpts,
+  //   alias: "base",
+  //   loc: path.dirname(filename)
+  // });
 
-  const opts = optsManager.init({ filename });
+  // const opts = optsManager.init({ filename });
   // Do not process config files since has already been done with the OptionManager
   // calls above and would introduce duplicates.
-  opts.babelrc = false;
-  opts.sourceMap = true;
-  opts.ast = false;
+  // opts.babelrc = false;
+  // opts.sourceMap = true;
+  // opts.ast = false;
 
-  return babel.transformFile(filename, opts, (err, result) => {
+  return babel.transformFile(filename, transformOpts, (err, result) => {
     callback(err, result);
   });
 }
