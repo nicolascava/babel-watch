@@ -1,10 +1,8 @@
-# Looking for maintainer
+# Babel Watch
 
-As I've stopped using this project some time ago I'd be happy to onboard new person who would be responsible for evaluating, merging PRs and publishing new releases. If you would like to be such a person and help this community get what they deserve join our discussion here: https://github.com/kmagiera/babel-watch/issues/71
+> Reload your babel-node app on JS source file changes. And do it *fast*.
 
-# babel-watch
-
-Reload your babel-node app on JS source file changes. And do it *fast*.
+> ❌ Sorry, but this library is no longer maintained. Please find an alternative.
 
 ## Why should I use it?
 
